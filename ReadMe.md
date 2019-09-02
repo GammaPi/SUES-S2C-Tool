@@ -6,7 +6,6 @@
 |____/ \___/|_____|____/    |____/_____|\____|   |_|\___/ \___/|_|
 
 ```
-# 页面建设中...请等待ver1.0发布
 # 简介
 
 ## 什么是SUES S2C Tool?
@@ -58,7 +57,25 @@ SUES S2C Tool使用python编写，代码开源，免费。主要有以下三种�
 
 ## 方式一、下载打包好的程序
 
-为方便大家使用，我通过pyinstall打包成了能在**windows**和**linux**(x86架构)直接运行的可执行文件，具体可以去Release页面下载。有Mac的同学也可以帮忙打包，然后发pull request贡献给我～
+## Windows
+
+在Windows10下使用pyinstaller打包
+
+请去[Release页面](https://github.com/GammaPi/SUES-S2C-Tool/releases/download/v1.0/sues_s2c-windows-32.exe)下载sues_s2c-windows-32.exe
+
+## Linux
+
+在Ubuntu18.04下使用pyinstaller打包
+
+```bash
+wget https://github.com/GammaPi/SUES-S2C-Tool/releases/download/v1.0/sues_s2c-linux-32
+chown u+x sues_s2c-linux-32
+./sues_s2c-linux-32
+```
+
+## Mac
+
+请参照方式二，有Mac环境的同学可以用pyinstaller打包提交pull request
 
 ## 方式二、直接运行脚本
 安装python 3.x版本
@@ -100,8 +117,10 @@ python sues_s2c.py
 [在 Mac 上导入或导出日历](https://support.apple.com/zh-cn/guide/calendar/icl1023/mac)
 
 
-# 贡献
+# 贡献本仓库
 
 如果您遇到问题可以去github本仓库的issue页面提。如果您想要贡献代码可以提交pull request或者另起炉灶自己写一个也行～
 
 目前的脚本代码简单，注释丰富，方便大家修改/复用。
+
+如果能随手转发让更多的同学用到就更好啦！
