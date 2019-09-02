@@ -142,7 +142,7 @@ class SuesApi:
             raise MyException(ErrorCode.CAPTCHA_FETCH_ERROR, 'session对象没有被建立，是否忘记调用了 SuesApi.newSession?')
 
         try:
-            r = self.session.get('http://jxxt.sues.edu.cn/eams/captcha/image.action')
+            r = self.session.get('http://jxxt.sues.edu.cn/eams/captcha/image.action', timeout=10)
         except requests.exceptions.RequestException as e:  # This is the correct syntax
             raise MyException(ErrorCode.CAPTCHA_FETCH_ERROR, str(e))
 
@@ -166,7 +166,7 @@ class SuesApi:
                 'encodedPassword': '',
                 'loginForm.captcha': captcha}
         try:
-            r = self.session.post('http://jxxt.sues.edu.cn/eams/login.action', data)
+            r = self.session.post('http://jxxt.sues.edu.cn/eams/login.action', data, timeout=10)
         except requests.exceptions.RequestException as e:  # This is the correct syntax
             raise MyException(ErrorCode.LOGIN_ERROR, str(e))
 
@@ -184,7 +184,7 @@ class SuesApi:
 
         # 获取engine.js
         try:
-            r = self.session.get('http://jxxt.sues.edu.cn/eams/dwr/engine.js')
+            r = self.session.get('http://jxxt.sues.edu.cn/eams/dwr/engine.js', timeout=10)
         except requests.exceptions.RequestException as e:  # This is the correct syntax
             raise MyException(ErrorCode.XHRSession_Error, str(e))
 
@@ -229,7 +229,7 @@ class SuesApi:
         try:
             r = self.session.post(
                 'http://jxxt.sues.edu.cn/eams/dwr/call/plaincall/semesterDao.getYearsOrderByDistance.dwr',
-                data=payload)
+                data=payload, timeout=10)
         except requests.exceptions.RequestException as e:  # This is the correct syntax
             raise MyException(ErrorCode.YEAR_FETCH_ERROR, str(e))
 
@@ -262,7 +262,7 @@ class SuesApi:
         try:
             r = self.session.post(
                 'http://jxxt.sues.edu.cn/eams/dwr/call/plaincall/semesterDao.getTermsOrderByDistance.dwr',
-                data=payload)
+                data=payload, timeout=10)
         except requests.exceptions.RequestException as e:  # This is the correct syntax
             raise MyException(ErrorCode.TERM_FETCH_ERROR, str(e))
 
@@ -280,7 +280,11 @@ class SuesApi:
             raise MyException(ErrorCode.COURSE_FETCH_ERROR, 'session对象没有被建立，是否忘记调用了 SuesApi.newSession?')
 
         # get SemesterID and other stuff
-        r = self.session.get('http://jxxt.sues.edu.cn/eams/courseTableForStd.action?method=stdHome')
+        try:
+            r = self.session.get('http://jxxt.sues.edu.cn/eams/courseTableForStd.action?method=stdHome', timeout=10)
+        except requests.exceptions.RequestException as e:  # This is the correct syntax
+            raise MyException(ErrorCode.COURSE_FETCH_ERROR, str(e))
+
 
         semesterId = r.html.find('input[name=semester\\.id]', first=True).attrs['value']
         # what if the webpage changed?
@@ -298,7 +302,7 @@ class SuesApi:
 
         print('获取课程信息中...')
         try:
-            r = self.session.post(courseRequestUrl, data=payload)
+            r = self.session.post(courseRequestUrl, data=payload, timeout=10)
         except requests.exceptions.RequestException as e:  # This is the correct syntax
             raise MyException(ErrorCode.COURSE_FETCH_ERROR, str(e))
 
@@ -382,6 +386,7 @@ def cvt2Caldav(startYear: str, allOccupyWeek: str, allStartWeek: str, allEndWeek
     :param modifyDEFTime 是否修正DEF楼课程第三节和第四节的时间
     :param icsFileName: ics文件的名称
     """
+    uid = 1
 
     cal = Calendar()
     weekExtractRe = re.compile(r'[1]+')
@@ -438,6 +443,9 @@ def cvt2Caldav(startYear: str, allOccupyWeek: str, allStartWeek: str, allEndWeek
                 print('\t')
 
             event = Event()
+            event.add('uid', curCourse.courseId + curCourse.roomId + curCourse.day + str(
+                curCourseBegWeek - (int(allOccupyWeek) - 1) + 1) + str(curCourseEndWeek - (int(allOccupyWeek) - 1) + 1))
+            uid += 1
             event.add('summary', curCourse.courseName + ' ' + curCourse.teacherName)
             event.add('dtstart', startDayFrom)
             event.add('dtend', startDayTo)
