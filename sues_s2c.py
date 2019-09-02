@@ -12,7 +12,7 @@ import getpass
 from enum import Enum, unique
 import sys
 
-DBG_MODE = True
+DBG_MODE = False
 
 
 @unique
@@ -358,7 +358,7 @@ class SuesApi:
                 merged = False
                 for existCIndex, existingCourse in enumerate(unMergedCourseDict[curCourse.courseId]):
                     if (existingCourse.shouldMergeValidWeek(curCourse)):
-                        print('Merge', curCourse.courseName, existingCourse.validweeks, '+', curCourse.validweeks)
+                        #print('Merge', curCourse.courseName, existingCourse.validweeks, '+', curCourse.validweeks)
                         existingCourse.mergeValidWeek(curCourse.validweeks)
                         unMergedCourseDict[curCourse.courseId][existCIndex] = existingCourse
                         merged = True
@@ -483,11 +483,11 @@ by XtTech
         suesApi = SuesApi()
         print('连接教学管理系统中... 请确认http://jxxt.sues.edu.cn能访问')
         suesApi.newSession()
-        print('获取验证码中,验证码将在另外窗口中弹出...')
-
+        
         username = input('\n请输入用户名:')
         passwd = input("\n请输入密码:")
 
+        print('\n获取验证码中,验证码将在另外窗口中弹出...')
         capthaBytes = suesApi.getCaptha()
         i = Image.open(BytesIO(capthaBytes))
         i = i.resize((i.size[0] * 4, i.size[1] * 4))
@@ -498,18 +498,20 @@ by XtTech
         suesApi.login(username, passwd, captcha)
 
         yearList = suesApi.getYears()
+        print('')
         for i, year in enumerate(yearList):
             print(i + 1, ':', year)
-        yearSelection = int(input('\n请选择导出课表的范围:'))
+        yearSelection = int(input('请选择导出课表的范围:'))
         if not (0 < yearSelection and yearSelection <= len(yearList)):
             raise MyException(ErrorCode.INPUT_ERROR, '时间段输入不正确,请输入冒号左边的序号')
         yearSelection = yearList[yearSelection - 1]
 
         termList = suesApi.getTerms(yearSelection)
         termList = sorted(termList)
+        print('')
         for i, term in enumerate(termList):
             print(i + 1, ':第%s学期' % term)
-        termSelection = int(input('\n请选择学期:'))
+        termSelection = int(input('请选择学期:'))
         if not (0 < termSelection and termSelection <= len(termList)):
             raise MyException(ErrorCode.INPUT_ERROR, '学期输入不正确,请输入冒号左边的序号')
         termSelection = termList[termSelection - 1]
@@ -521,12 +523,20 @@ by XtTech
             modifyDefTime = False
         else:
             raise MyException(ErrorCode.INPUT_ERROR, '是否修改D E F时间输入不正确，如果要修改输入y，否则输入n')
-
+        
+        print('')
         startYear, allOccupyWeek, allStartWeek, allEndWeek, couseList = suesApi.getCourseTable(yearSelection,
                                                                                                termSelection)
+        
+        alarmTime= input('\n请输入课前提醒分钟数(0-120):')
+        if(alarmTime.isdigit() and 0<=int(alarmTime) and int(alarmTime)<=120):
+            alarmTime=int(alarmTime)
+        else:
+            raise MyException(ErrorCode.INPUT_ERROR, '提醒时间只能为上课前0-120分钟')
+        
         fileName = ''.join([username, '_', yearSelection, '学年_第', termSelection, '学期 课表导出.ics'])
         cvt2Caldav(startYear, allOccupyWeek, allStartWeek, allEndWeek, couseList,
-                   5, modifyDefTime, fileName)
+                   alarmTime, modifyDefTime, fileName)
         print('\n日历生成好了，快去导入吧！ ics文件位置在本程序根目录下，文件名为:' + fileName)
     except MyException as e:
         print('[异常]', e, file=sys.stderr)
@@ -538,3 +548,5 @@ by XtTech
         print('[异常] 遇到未识别的异常，可能因为BUG或教学系统API变化导致，非常抱歉，请更新软件或联系开发者！\n 错误信息：' + str(e), file=sys.stderr)
         if DBG_MODE:
             raise e
+            
+    input('\n按回车键退出')
