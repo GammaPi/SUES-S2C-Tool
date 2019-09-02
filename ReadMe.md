@@ -9,6 +9,7 @@
 # 简介
 
 ## 什么是SUES S2C Tool?
+![](markdownimgs/2019-09-02-21-44-26.png)
 
 S2C的意思是schedule to calendar。这个小工具能够将上海工程技术大学(SUES)教学信息管理系统上的课表转换成通用的电子日历文件(.ics)。有了.ics文件，你可以在不安装额外软件的情况下，在几乎全平台的设备上同步课程表，并收到上课提醒。
 
@@ -30,7 +31,6 @@ SUES S2C Tool is a python script that help you to convert course schedule to a u
 It's a opensource free tool that just works! Perfect for managing course schedule~  
 
 ## 我为什么要做这个小工具？
-
 ### 现有课表查看方法的缺点
 
 目前大家想要看课表一般有这几种方式：登录教学系统查看、把课表打印下来/截图、使用专门的APP或小程序（超级课程表、课程盒子、zsqw123同学写的[课表APP](https://github.com/zsqw123/SUESjxxt)、马学长和BC同学写的微信课表小程序）等。
