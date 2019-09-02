@@ -88,8 +88,12 @@ timetable = [('08:15', '09:00'),
              ('18:45', '19:30'),
              ('19:30', '20:15'),
              ('20:15', '21:00'),
-             ('21:00', '21:45'),
-             ('21:45', '22:30')]
+             ('16:30', '17:15'),
+             ('17:15', '18:00')]
+
+DEFtimeTable = timetable.copy()
+DEFtimeTable[2] = ('10:25', '11:10')
+DEFtimeTable[3] = ('11:10', '11:55')
 
 
 class SuesApi:
@@ -111,14 +115,14 @@ class SuesApi:
         """
         创建新会话，本方法必须在所有函数之前调用
         """
-        # proxies = {'http': 'socks5://127.0.0.1:1085',
-        #            'https': 'socks5://127.0.0.1:1085'}
+        proxies = {'http': 'socks5://127.0.0.1:1085',
+                   'https': 'socks5://127.0.0.1:1085'}
         reqHeader = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.9 Safari/537.36'
         }
         self.session = requests_html.HTMLSession()
         self.session.headers = reqHeader
-        # self.session.proxies = proxies
+        self.session.proxies = proxies
 
         # 测试连接
         try:
@@ -301,7 +305,8 @@ class SuesApi:
         print('解析课程信息中...')
         # 寻找特定的一个js脚本
         script = r.html.find('script', containing='new TaskActivity')
-        assert (len(script) == 1)
+        if (len(script) != 1):
+            raise MyException(ErrorCode.COURSE_FETCH_ERROR, '课表获取失败，可能是因为该时间段没有课程？请检查学期、时间的选择，如果还有问题请联系开发者。')
         script = script[0]
         scriptStr = script.html.replace('&#13;', '\r\n')
 
@@ -365,7 +370,7 @@ class SuesApi:
 
 
 def cvt2Caldav(startYear: str, allOccupyWeek: str, allStartWeek: str, allEndWeek: str, courseList: list, alarmTime: int,
-               icsFileName: str):
+               modifyDEFTime: bool, icsFileName: str):
     """
     将课程信息转换为.ics日历文件
     :param startYear: 课表年份，可以通过SuesApi.getCourseTable获得
@@ -374,12 +379,14 @@ def cvt2Caldav(startYear: str, allOccupyWeek: str, allStartWeek: str, allEndWeek
     :param allEndWeek: 教学活动结束周,是相对allOccupyWeek的值,可以通过SuesApi.getCourseTable获得 从1开始
     :param courseList: 课程信息列表，可以通过SuesApi.getCourseTable获得
     :param alarmTime: 提前提醒分钟数，正整数
+    :param modifyDEFTime 是否修正DEF楼课程第三节和第四节的时间
     :param icsFileName: ics文件的名称
     """
 
     cal = Calendar()
     weekExtractRe = re.compile(r'[1]+')
-    print('教学活动范围：%s周-%s周' % (allStartWeek, allEndWeek))
+
+    print('\n教学活动范围：%s周-%s周' % (allStartWeek, allEndWeek))
     for curCourse in courseList:
         # 遍历开课时间段，每个开课时间段（周次）对应课程表上的一个格子，创建一个日程
         for validweek in weekExtractRe.finditer(curCourse.validweeks):
@@ -387,8 +394,17 @@ def cvt2Caldav(startYear: str, allOccupyWeek: str, allStartWeek: str, allEndWeek
             curCourseEndWeek = validweek.end() - 1  # 当前开课周次结束日期 包含 从0开始
 
             courseTimes = sorted(curCourse.courses)
-            begTime = timetable[int(courseTimes[0])][0]  # 上课时间
-            endTime = timetable[int(courseTimes[-1])][-1]  # 下课时间
+
+            begTime = int(courseTimes[0])
+            endTime = int(courseTimes[-1])
+            timeModified = False
+            if modifyDEFTime and curCourse.roomName[0] in ['D', 'E', 'F'] and begTime in [2, 3] and endTime in [2, 3]:
+                begTime = DEFtimeTable[begTime][0]  # 上课时间
+                endTime = DEFtimeTable[endTime][-1]  # 下课时间
+                timeModified = True
+            else:
+                begTime = timetable[begTime][0]  # 上课时间
+                endTime = timetable[endTime][-1]  # 下课时间
 
             # 下面日期中周日是第一天，从0计数，而curCourse.day认为周一是第一天
             if datetime.strptime(startYear + '-01-01', "%Y-%m-%d").weekday() is 6:
@@ -407,14 +423,19 @@ def cvt2Caldav(startYear: str, allOccupyWeek: str, allStartWeek: str, allEndWeek
                          endTime]), "%Y-W%U-%w %H:%M")  # 最后一次下课时间
 
             # 调试信息输出
-            print('正在添加日程： %23s\t%23s\t%d-%d周\t星期%d %d-%d节\t' % (
+            print('正在添加日程： %23s\t%23s\t%d-%d周\t星期%d %d-%d节\t%s' % (
                 curCourse.courseName,
                 curCourse.teacherName,
                 curCourseBegWeek - (int(allOccupyWeek) - 1) + 1,
                 curCourseEndWeek - (int(allOccupyWeek) - 1) + 1,
                 int(curCourse.day) + 1,
                 int(courseTimes[0]) + 1,
-                int(courseTimes[-1]) + 1))
+                int(courseTimes[-1]) + 1,
+                curCourse.roomName), end='')
+            if (timeModified):
+                print('\tDEF楼 3 4节时间调整')
+            else:
+                print('\t')
 
             event = Event()
             event.add('summary', curCourse.courseName + ' ' + curCourse.teacherName)
@@ -455,40 +476,50 @@ by XtTech
         print('连接教学管理系统中... 请确认http://jxxt.sues.edu.cn能访问')
         suesApi.newSession()
         print('获取验证码中,验证码将在另外窗口中弹出...')
+
+        username = input('\n请输入用户名:')
+        passwd = input("\n请输入密码:")
+
         capthaBytes = suesApi.getCaptha()
         i = Image.open(BytesIO(capthaBytes))
-        i.show()
+        i = i.resize((i.size[0] * 4, i.size[1] * 4))
+        i.show('验证码')
 
-        username = input('用户名:')
-        passwd = input("密码(输入时不显示):")
-        captcha = input('验证码:')
-        print(captcha)
+        captcha = input('\n请输入验证码(图片另弹窗口):')
 
         suesApi.login(username, passwd, captcha)
 
         yearList = suesApi.getYears()
         for i, year in enumerate(yearList):
             print(i + 1, ':', year)
-        yearSelection = int(input('请选择导出课表的范围:'))
+        yearSelection = int(input('\n请选择导出课表的范围:'))
         if not (0 < yearSelection and yearSelection <= len(yearList)):
-            raise MyException(ErrorCode.INPUT_ERROR, '时间段输入不正确')
+            raise MyException(ErrorCode.INPUT_ERROR, '时间段输入不正确,请输入冒号左边的序号')
         yearSelection = yearList[yearSelection - 1]
 
         termList = suesApi.getTerms(yearSelection)
         termList = sorted(termList)
         for i, term in enumerate(termList):
             print(i + 1, ':第%s学期' % term)
-        termSelection = int(input('请选择学期:'))
+        termSelection = int(input('\n请选择学期:'))
         if not (0 < termSelection and termSelection <= len(termList)):
-            raise MyException(ErrorCode.INPUT_ERROR, '学期输入不正确')
+            raise MyException(ErrorCode.INPUT_ERROR, '学期输入不正确,请输入冒号左边的序号')
         termSelection = termList[termSelection - 1]
 
-        # todo: check input
+        modifyDefTime = input('\n是否要将D E F楼 3-4节课的下课时间从 10:05-11:35 调整到 10:25-11:55 y/n:')
+        if modifyDefTime == 'y':
+            modifyDefTime = True
+        elif modifyDefTime == 'n':
+            modifyDefTime = False
+        else:
+            raise MyException(ErrorCode.INPUT_ERROR, '是否修改D E F时间输入不正确，如果要修改输入y，否则输入n')
+
         startYear, allOccupyWeek, allStartWeek, allEndWeek, couseList = suesApi.getCourseTable(yearSelection,
                                                                                                termSelection)
-
+        fileName = ''.join([username, '_', yearSelection, '学年_第', termSelection, '学期 课表导出.ics'])
         cvt2Caldav(startYear, allOccupyWeek, allStartWeek, allEndWeek, couseList,
-                   5, username + '_' + yearSelection + '_' + termSelection + '.ics')
+                   5, modifyDefTime, fileName)
+        print('\n日历生成好了，快去导入吧！ ics文件位置在本程序根目录下，文件名为:' + fileName)
     except MyException as e:
         print('[异常]', e, file=sys.stderr)
         if DBG_MODE:
