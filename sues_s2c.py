@@ -12,7 +12,8 @@ import getpass
 from enum import Enum, unique
 import sys
 
-DBG_MODE = False
+DBG_MODE = True
+
 
 @unique
 class ErrorCode(Enum):
@@ -23,6 +24,7 @@ class ErrorCode(Enum):
     TERM_FETCH_ERROR = -5, '学期获取失败'
     COURSE_FETCH_ERROR = -6, '课程表获取失败'
     CONNECTION_ERROR = -7, '网络连接失败'
+    INPUT_ERROR = -8, '用户输入错误'
 
     def __init__(self, errorCode, errorMsg):
         self.errorcode = errorCode
@@ -40,16 +42,38 @@ class MyException(Exception):
 
 
 class CourseInfo:
-    def __init__(self, teacherId, teacherName, courseId, courseName, roomId, roomName, vaildWeeks):
+    def __init__(self, teacherId, teacherName, courseId, courseName, roomId, roomName, validweeks):
         self.teacherId = teacherId
         self.teacherName = teacherName
         self.courseId = courseId
         self.courseName = courseName
         self.roomId = roomId
         self.roomName = roomName
-        self.vaildWeeks = vaildWeeks  # 01组成的字符串，代表了一年的53周
+        self.validweeks = validweeks  # 01组成的字符串，代表了一年的53周
         self.day = None
         self.courses = []
+
+    def shouldMergeValidWeek(self, otherCourseInfo):
+        # 这里必须要把星期和上课时间补充完整后才能进行合并
+        assert self.day != None
+        assert len(self.courses) != 0
+
+        # 合并的条件是两个课程除了validweeks其他信息都相同，且validweeks长度相同，内容不同（不然的话就是已经合并过的，在当前情况下也只课程出现一次合并）
+        return len(self.validweeks) == len(otherCourseInfo.validweeks) \
+               and self.validweeks != otherCourseInfo.validweeks \
+               and self.teacherId == otherCourseInfo.teacherId \
+               and self.courseId == otherCourseInfo.courseId \
+               and self.roomId == otherCourseInfo.roomId \
+               and self.day == otherCourseInfo.day
+
+    def mergeValidWeek(self, otherValidWeeks):
+        """
+        对字符串进行按位或操作，合并self.validweeks和otehrValidWeeks
+        :param otherValidWeeks:
+        """
+        assert len(self.validweeks) == len(otherValidWeeks)
+        newValidWeeks = []
+        self.validweeks += otherValidWeeks
 
 
 timetable = [('08:15', '09:00'),
@@ -102,248 +126,293 @@ class SuesApi:
         except requests.exceptions.RequestException as e:  # This is the correct syntax
             raise MyException(ErrorCode.CONNECTION_ERROR, '访问教学管理系统主页出错,请检查连接\n' + str(e))
 
-            self.xhrOriSessionId = self._getXHROriSessionID()
-            self.xhrSessionId = self._getXHRCallSessionId()
+        self.xhrOriSessionId = self._getXHROriSessionID()
+        self.xhrSessionId = self._getXHRCallSessionId()
 
-        def getCaptha(self):
-            """
-            获取验证码
-            :return: 验证码图像(bytearray)）
-            """
-            if not self.session:
-                raise MyException(ErrorCode.CAPTCHA_FETCH_ERROR, 'session对象没有被建立，是否忘记调用了 SuesApi.newSession?')
+    def getCaptha(self):
+        """
+        获取验证码
+        :return: 验证码图像(bytearray)）
+        """
+        if not self.session:
+            raise MyException(ErrorCode.CAPTCHA_FETCH_ERROR, 'session对象没有被建立，是否忘记调用了 SuesApi.newSession?')
 
-            try:
-                r = self.session.get('http://jxxt.sues.edu.cn/eams/captcha/image.action')
-            except requests.exceptions.RequestException as e:  # This is the correct syntax
-                raise MyException(ErrorCode.CAPTCHA_FETCH_ERROR, str(e))
+        try:
+            r = self.session.get('http://jxxt.sues.edu.cn/eams/captcha/image.action')
+        except requests.exceptions.RequestException as e:  # This is the correct syntax
+            raise MyException(ErrorCode.CAPTCHA_FETCH_ERROR, str(e))
 
-            if r.status_code == 200:
-                return r.content
+        if r.status_code == 200:
+            return r.content
+        else:
+            raise MyException(ErrorCode.CAPTCHA_FETCH_ERROR, '验证码获取失败，返回值异常' + str(r.status_code))
+
+    def login(self, username: str, passwd: str, captcha: str):
+        """
+        登录
+        :param username: 学号
+        :param passwd: 教学管理系统密码
+        :param captcha: 验证码
+        """
+        if not self.session:
+            raise MyException(ErrorCode.LOGIN_ERROR, 'session对象没有被建立，是否忘记调用了 SuesApi.newSession?')
+
+        data = {'loginForm.name': username,
+                'loginForm.password': passwd,
+                'encodedPassword': '',
+                'loginForm.captcha': captcha}
+        try:
+            r = self.session.post('http://jxxt.sues.edu.cn/eams/login.action', data)
+        except requests.exceptions.RequestException as e:  # This is the correct syntax
+            raise MyException(ErrorCode.LOGIN_ERROR, str(e))
+
+        errorMsg = r.html.find('ul.errorMessage>li>span', first=True)
+        if errorMsg:
+            raise MyException(ErrorCode.LOGIN_ERROR, errorMsg.text)
+
+    def _getXHROriSessionID(self):
+        """
+        获取生成XHRSessionID需要的XHROriSessionID
+        :return: XHROriSessionID
+        """
+        if not self.session:
+            raise MyException(ErrorCode.XHRSession_Error, 'session对象没有被建立，是否忘记调用了 SuesApi.newSession?')
+
+        # 获取engine.js
+        try:
+            r = self.session.get('http://jxxt.sues.edu.cn/eams/dwr/engine.js')
+        except requests.exceptions.RequestException as e:  # This is the correct syntax
+            raise MyException(ErrorCode.XHRSession_Error, str(e))
+
+        sessionStrBeg = r.text.find('dwr.engine._origScriptSessionId')
+        sessionStrEnd = r.text.find('\n', sessionStrBeg)
+        sessionStr = r.text[sessionStrBeg:sessionStrEnd]
+        sessionStrBeg = sessionStr.find('"')
+        sessionStrEnd = sessionStr.rfind('"')
+        sessionStr = sessionStr[sessionStrBeg + 1:sessionStrEnd]
+        return sessionStr
+
+    def _getXHRCallSessionId(self):
+        """
+        获取XHRSessionID，XHRSessionID=XHROriSessionID+3位随机数
+        :return: XHRSessionID
+        """
+        if not self.xhrOriSessionId:
+            raise MyException(ErrorCode.XHRSession_Error,
+                              'xhrOriSessionId对象没有被建立，是否忘记调用了 SuesApi._getXHROriSessionID?')
+        return self.xhrOriSessionId + str(math.floor(random.random() * 1000))
+
+    def getYears(self):
+        """
+        获取教学系统允许查询的教学年
+        :return: 字符串列表 例：['2019-2020']
+        """
+        if not self.xhrSessionId or not self.session:
+            raise MyException(ErrorCode.YEAR_FETCH_ERROR, 'session或xhrSessionId对象没有被建立，是否忘记调用了 SuesApi.newSession?')
+
+        # XHR调用请求参数
+        payload = {
+            'callCount': '1',
+            'page': '/eams/courseTableForStd.action?method=stdHome',
+            'httpSessionId': '',
+            'scriptSessionId': self.xhrSessionId,
+            'c0-scriptName': 'semesterDao',
+            'c0-methodName': 'getYearsOrderByDistance',
+            'c0-id': '0',
+            'c0-param0': 'string:1',
+            'batchId': '0'
+        }
+        try:
+            r = self.session.post(
+                'http://jxxt.sues.edu.cn/eams/dwr/call/plaincall/semesterDao.getYearsOrderByDistance.dwr',
+                data=payload)
+        except requests.exceptions.RequestException as e:  # This is the correct syntax
+            raise MyException(ErrorCode.YEAR_FETCH_ERROR, str(e))
+
+        yearList = self.squareBracketExprRe.findall(r.text)[0][1:-1].replace('"', '').split(',')
+
+        return yearList
+
+    def getTerms(self, yearStr: str):
+        """
+        获取当前教学年对应的学期选项
+        :param yearStr: self.getYears获取的年份字符串 例:'2019-2020'
+        :return: 学期列表 例：['1','2']
+        """
+        if not self.xhrSessionId or not self.session:
+            raise MyException(ErrorCode.TERM_FETCH_ERROR, 'session或xhrSessionId对象没有被建立，是否忘记调用了 SuesApi.newSession?')
+
+        # XHR调用请求参数
+        payload = {
+            'callCount': '1',
+            'page': '/eams/courseTableForStd.action?method=stdHome',
+            'httpSessionId': '',
+            'scriptSessionId': self.xhrSessionId,
+            'c0-scriptName': 'semesterDao',
+            'c0-methodName': 'getTermsOrderByDistance',
+            'c0-id': '0',
+            'c0-param0': 'string:1',
+            'c0-param1': 'string:' + yearStr,
+            'batchId': '1'
+        }
+        try:
+            r = self.session.post(
+                'http://jxxt.sues.edu.cn/eams/dwr/call/plaincall/semesterDao.getTermsOrderByDistance.dwr',
+                data=payload)
+        except requests.exceptions.RequestException as e:  # This is the correct syntax
+            raise MyException(ErrorCode.TERM_FETCH_ERROR, str(e))
+
+        semesterList = self.squareBracketExprRe.findall(r.text)[0][1:-1].replace('"', '').split(',')
+        return semesterList
+
+    def getCourseTable(self, yearStr: str, semester: str):
+        """
+        获取课程列表
+        :param yearStr: self.getYears获取的年份字符串 例:'2019-2020'
+        :param semester: 学期 例:'1'
+        :return: 课表年份, 教学活动起始(相对于全年),教学活动起始周(相对于第二个参数)，教学活动结束周(相对于第二个参数), CourseInfo列表 表中每一项代表教学管理系统的一个格子，相应需要创建一个日程
+        """
+        if not self.session:
+            raise MyException(ErrorCode.COURSE_FETCH_ERROR, 'session对象没有被建立，是否忘记调用了 SuesApi.newSession?')
+
+        # get SemesterID and other stuff
+        r = self.session.get('http://jxxt.sues.edu.cn/eams/courseTableForStd.action?method=stdHome')
+
+        semesterId = r.html.find('input[name=semester\\.id]', first=True).attrs['value']
+        # what if the webpage changed?
+        courseRequestUrl = 'http://jxxt.sues.edu.cn/eams/' + \
+                           r.html.find('td.frameTable_content>iframe', first=True).attrs[
+                               'src']
+        payload = {
+            'ignoreHead': '1',
+            'semester.id': 'semesterId',
+            'semester.calendar.id': '1',
+            'semester.schoolYear': yearStr,
+            'semester.name': semester,
+            'startWeek': '1'
+        }
+
+        print('获取课程信息中...')
+        try:
+            r = self.session.post(courseRequestUrl, data=payload)
+        except requests.exceptions.RequestException as e:  # This is the correct syntax
+            raise MyException(ErrorCode.COURSE_FETCH_ERROR, str(e))
+
+        print('解析课程信息中...')
+        # 寻找特定的一个js脚本
+        script = r.html.find('script', containing='new TaskActivity')
+        assert (len(script) == 1)
+        script = script[0]
+        scriptStr = script.html.replace('&#13;', '\r\n')
+
+        rltStartYear = None  # 返回的起始年份
+        rltCouseList = []  # 返回的课程列表，
+        rltAllOccupyWeek = None  # 教学活动起始周
+        rltAllStartWeek = None  # 课表相对起始周 从1开始，一般都为1
+        rltAllEndWeek = None  # 返回的结束周 从1开始
+        # 逐行解析js脚本，获取其中的课程信息
+
+        unMergedCouseList = []  # 未合并的课程列表，
+        unMergedCourseDict = {}
+        # 提取并补充设置所有课程信息的上课星期、上课时间
+        for line in scriptStr.splitlines():
+            if (self.activityMatchRe.match(line)):
+                # 新课程
+                curCourse = CourseInfo(*(i[1:-1] for i in self.activityExtractRe.findall(line)))
+                unMergedCouseList.append(curCourse)
+            elif (self.indexMatchRe.match(line)):
+                # 当前课程的节次信息
+                line = line.replace(' ', '')
+                beg = line.find('=') + 1
+                line = line[beg:-1]
+
+                day, course = line.replace('index =', '').split('*unitCount+')
+                unMergedCouseList[-1].day = day
+                unMergedCouseList[-1].courses.append(course)
+            elif (self.marshallMatchRe.match(line)):
+                # 起始周信息
+                rltAllOccupyWeek, rltAllStartWeek, rltAllEndWeek = self.timeExtractRe.findall(line)[0][1:-1].split(',')
+            elif (self.yearMatchRe.match(line)):
+                # 当前年份信息
+                rltStartYear, _ = self.timeExtractRe.findall(line)[0][1:-1].split(',')
+
+        print('合并课程信息中...')
+
+        # 这里需要注意，如果当前validweek放不下js会新建一个课程信息对象把validweek补到前面去
+        # 这个课程信息对象需要特殊处理，否则日期会摆放不正确（这里和jxxt网上处理有一定差异！）
+        # 因此如果发现这种情况需要特殊处理,如果碰到两个课程信息只有validweeks不同就需要进行合并这两个validweeks
+        # 进行课程信息合并
+        for curCourse in unMergedCouseList:
+            if curCourse.courseId not in unMergedCourseDict:
+                unMergedCourseDict[curCourse.courseId] = [curCourse]
             else:
-                raise MyException(ErrorCode.CAPTCHA_FETCH_ERROR, '验证码获取失败，返回值异常' + str(r.status_code))
+                merged = False
+                for existCIndex, existingCourse in enumerate(unMergedCourseDict[curCourse.courseId]):
+                    if (existingCourse.shouldMergeValidWeek(curCourse)):
+                        print('Merge', curCourse.courseName, existingCourse.validweeks, '+', curCourse.validweeks)
+                        existingCourse.mergeValidWeek(curCourse.validweeks)
+                        unMergedCourseDict[curCourse.courseId][existCIndex] = existingCourse
+                        merged = True
+                        break
 
-        def login(self, username: str, passwd: str, captcha: str):
-            """
-            登录
-            :param username: 学号
-            :param passwd: 教学管理系统密码
-            :param captcha: 验证码
-            """
-            if not self.session:
-                raise MyException(ErrorCode.LOGIN_ERROR, 'session对象没有被建立，是否忘记调用了 SuesApi.newSession?')
+                if not merged:
+                    unMergedCourseDict[curCourse.courseId].append(curCourse)
 
-            data = {'loginForm.name': username,
-                    'loginForm.password': passwd,
-                    'encodedPassword': '',
-                    'loginForm.captcha': captcha}
-            try:
-                r = self.session.post('http://jxxt.sues.edu.cn/eams/login.action', data)
-            except requests.exceptions.RequestException as e:  # This is the correct syntax
-                raise MyException(ErrorCode.LOGIN_ERROR, str(e))
+        for curCourseList in unMergedCourseDict.values():
+            rltCouseList.extend(curCourseList)
 
-            errorMsg = r.html.find('ul.errorMessage>li>span', first=True)
-            if errorMsg:
-                raise MyException(ErrorCode.LOGIN_ERROR, errorMsg.text)
-
-        def _getXHROriSessionID(self):
-            """
-            获取生成XHRSessionID需要的XHROriSessionID
-            :return: XHROriSessionID
-            """
-            if not self.session:
-                raise MyException(ErrorCode.XHRSession_Error, 'session对象没有被建立，是否忘记调用了 SuesApi.newSession?')
-
-            # 获取engine.js
-            try:
-                r = self.session.get('http://jxxt.sues.edu.cn/eams/dwr/engine.js')
-            except requests.exceptions.RequestException as e:  # This is the correct syntax
-                raise MyException(ErrorCode.XHRSession_Error, str(e))
-
-            sessionStrBeg = r.text.find('dwr.engine._origScriptSessionId')
-            sessionStrEnd = r.text.find('\n', sessionStrBeg)
-            sessionStr = r.text[sessionStrBeg:sessionStrEnd]
-            sessionStrBeg = sessionStr.find('"')
-            sessionStrEnd = sessionStr.rfind('"')
-            sessionStr = sessionStr[sessionStrBeg + 1:sessionStrEnd]
-            return sessionStr
-
-        def _getXHRCallSessionId(self):
-            """
-            获取XHRSessionID，XHRSessionID=XHROriSessionID+3位随机数
-            :return: XHRSessionID
-            """
-            if not self.xhrOriSessionId:
-                raise MyException(ErrorCode.XHRSession_Error,
-                                  'xhrOriSessionId对象没有被建立，是否忘记调用了 SuesApi._getXHROriSessionID?')
-            return self.xhrOriSessionId + str(math.floor(random.random() * 1000))
-
-        def getYears(self):
-            """
-            获取教学系统允许查询的教学年
-            :return: 字符串列表 例：['2019-2020']
-            """
-            if not self.xhrSessionId or not self.session:
-                raise MyException(ErrorCode.YEAR_FETCH_ERROR, 'session或xhrSessionId对象没有被建立，是否忘记调用了 SuesApi.newSession?')
-
-            # XHR调用请求参数
-            payload = {
-                'callCount': '1',
-                'page': '/eams/courseTableForStd.action?method=stdHome',
-                'httpSessionId': '',
-                'scriptSessionId': self.xhrSessionId,
-                'c0-scriptName': 'semesterDao',
-                'c0-methodName': 'getYearsOrderByDistance',
-                'c0-id': '0',
-                'c0-param0': 'string:1',
-                'batchId': '0'
-            }
-            try:
-                r = self.session.post(
-                    'http://jxxt.sues.edu.cn/eams/dwr/call/plaincall/semesterDao.getYearsOrderByDistance.dwr',
-                    data=payload)
-            except requests.exceptions.RequestException as e:  # This is the correct syntax
-                raise MyException(ErrorCode.YEAR_FETCH_ERROR, str(e))
-
-            yearList = self.squareBracketExprRe.findall(r.text)[0][1:-1].replace('"', '').split(',')
-
-            return yearList
-
-        def getTerms(self, yearStr: str):
-            """
-            获取当前教学年对应的学期选项
-            :param yearStr: self.getYears获取的年份字符串 例:'2019-2020'
-            :return: 学期列表 例：['1','2']
-            """
-            if not self.xhrSessionId or not self.session:
-                raise MyException(ErrorCode.TERM_FETCH_ERROR, 'session或xhrSessionId对象没有被建立，是否忘记调用了 SuesApi.newSession?')
-
-            # XHR调用请求参数
-            payload = {
-                'callCount': '1',
-                'page': '/eams/courseTableForStd.action?method=stdHome',
-                'httpSessionId': '',
-                'scriptSessionId': self.xhrSessionId,
-                'c0-scriptName': 'semesterDao',
-                'c0-methodName': 'getTermsOrderByDistance',
-                'c0-id': '0',
-                'c0-param0': 'string:1',
-                'c0-param1': 'string:' + yearStr,
-                'batchId': '1'
-            }
-            try:
-                r = self.session.post(
-                    'http://jxxt.sues.edu.cn/eams/dwr/call/plaincall/semesterDao.getTermsOrderByDistance.dwr',
-                    data=payload)
-            except requests.exceptions.RequestException as e:  # This is the correct syntax
-                raise MyException(ErrorCode.TERM_FETCH_ERROR, str(e))
-
-            semesterList = self.squareBracketExprRe.findall(r.text)[0][1:-1].replace('"', '').split(',')
-            return semesterList
-
-        def getCourseTable(self, yearStr: str, semester: str):
-            """
-            获取课程列表
-            :param yearStr: self.getYears获取的年份字符串 例:'2019-2020'
-            :param semester: 学期 例:'1'
-            :return: 课表年份, 起始周(后来发现没有用), CourseInfo列表 表中每一项代表教学管理系统的一个格子，相应需要创建一个日程
-            """
-            if not self.session:
-                raise MyException(ErrorCode.COURSE_FETCH_ERROR, 'session对象没有被建立，是否忘记调用了 SuesApi.newSession?')
-
-            # get SemesterID and other stuff
-            r = self.session.get('http://jxxt.sues.edu.cn/eams/courseTableForStd.action?method=stdHome')
-
-            semesterId = r.html.find('input[name=semester\\.id]', first=True).attrs['value']
-            # what if the webpage changed?
-            courseRequestUrl = 'http://jxxt.sues.edu.cn/eams/' + \
-                               r.html.find('td.frameTable_content>iframe', first=True).attrs[
-                                   'src']
-            payload = {
-                'ignoreHead': '1',
-                'semester.id': 'semesterId',
-                'semester.calendar.id': '1',
-                'semester.schoolYear': yearStr,
-                'semester.name': semester,
-                'startWeek': '1'
-            }
-            try:
-                r = self.session.post(courseRequestUrl, data=payload)
-            except requests.exceptions.RequestException as e:  # This is the correct syntax
-                raise MyException(ErrorCode.COURSE_FETCH_ERROR, str(e))
-
-            # 寻找特定的一个js脚本
-            script = r.html.find('script', containing='new TaskActivity')
-            assert (len(script) == 1)
-            script = script[0]
-            scriptStr = script.html.replace('&#13;', '\r\n')
-
-            rltYear = None  # 返回的起始年份
-            rltCouseList = []  # 返回的课程列表，
-            rltStartWeek = None  # 返回的起始周
-
-            # 逐行解析js脚本，获取其中的课程信息
-            for line in scriptStr.splitlines():
-                if (self.activityMatchRe.match(line)):
-                    # 新课程
-                    curCourse = CourseInfo(*(i[1:-1] for i in self.activityExtractRe.findall(line)))
-                    rltCouseList.append(curCourse)
-                elif (self.indexMatchRe.match(line)):
-                    # 当前课程的节次信息
-                    line = line.replace(' ', '')
-                    beg = line.find('=') + 1
-                    line = line[beg:-1]
-
-                    day, course = line.replace('index =', '').split('*unitCount+')
-                    rltCouseList[-1].day = day
-                    rltCouseList[-1].courses.append(course)
-                elif (self.marshallMatchRe.match(line)):
-                    # 起始周信息
-                    rltStartWeek, _, _ = self.timeExtractRe.findall(line)[0][1:-1].split(',')
-                elif (self.yearMatchRe.match(line)):
-                    # 当前年份信息
-                    rltYear, _ = self.timeExtractRe.findall(line)[0][1:-1].split(',')
-            return rltYear, rltStartWeek, rltCouseList
+        return rltStartYear, rltAllOccupyWeek, rltAllStartWeek, rltAllEndWeek, rltCouseList
 
 
-def cvt2Caldav(startYear: str, startWeek: int, courseList: list, alarmTime: int, icsFileName: str):
+def cvt2Caldav(startYear: str, allOccupyWeek: str, allStartWeek: str, allEndWeek: str, courseList: list, alarmTime: int,
+               icsFileName: str):
     """
-    将课程信息
+    将课程信息转换为.ics日历文件
     :param startYear: 课表年份，可以通过SuesApi.getCourseTable获得
-    :param startWeek: 课表起始周，可以通过SuesApi.getCourseTable获得
+    :param allOccupyWeek: 教学活动起始周,可以通过SuesApi.getCourseTable获得 从1开始
+    :param allStartWeek: 教学活动起始周,是相对allOccupyWeek的值,一般为1,可以通过SuesApi.getCourseTable获得 从1开始
+    :param allEndWeek: 教学活动结束周,是相对allOccupyWeek的值,可以通过SuesApi.getCourseTable获得 从1开始
     :param courseList: 课程信息列表，可以通过SuesApi.getCourseTable获得
     :param alarmTime: 提前提醒分钟数，正整数
     :param icsFileName: ics文件的名称
     """
+
     cal = Calendar()
     weekExtractRe = re.compile(r'[1]+')
-
+    print('教学活动范围：%s周-%s周' % (allStartWeek, allEndWeek))
     for curCourse in courseList:
         # 遍历开课时间段，每个开课时间段（周次）对应课程表上的一个格子，创建一个日程
-        for validweek in weekExtractRe.finditer(curCourse.vaildWeeks):
-            begWeek = validweek.start() + 1  # 当前开课周次起始周
-            endWeek = validweek.end()  # 当前开课周次结束日期
+        for validweek in weekExtractRe.finditer(curCourse.validweeks):
+            curCourseBegWeek = validweek.start()  # 当前开课周次起始周  包含 从0开始
+            curCourseEndWeek = validweek.end() - 1  # 当前开课周次结束日期 包含 从0开始
 
             courseTimes = sorted(curCourse.courses)
             begTime = timetable[int(courseTimes[0])][0]  # 上课时间
             endTime = timetable[int(courseTimes[-1])][-1]  # 下课时间
 
+            # 下面日期中周日是第一天，从0计数，而curCourse.day认为周一是第一天
+            if datetime.strptime(startYear + '-01-01', "%Y-%m-%d").weekday() is 6:
+                # 这一年比较特殊，在python中第0周和第1周相同,往后顺延一周
+                curCourseBegWeek += 1
+                curCourseEndWeek += 1
+
             startDayFrom = datetime.strptime(
-                ''.join([str(startYear), '-W', str(begWeek), '-', str((int(curCourse.day) + 1) % 7), ' ',
-                         begTime]), "%Y-W%W-%w %H:%M")  # 第一次上课时间
+                ''.join([str(startYear), '-W', str(curCourseBegWeek), '-', str((int(curCourse.day) + 1) % 7), ' ',
+                         begTime]), "%Y-W%U-%w %H:%M")  # 第一次上课时间
             startDayTo = datetime.strptime(
-                ''.join([str(startYear), '-W', str(begWeek), '-', str((int(curCourse.day) + 1) % 7), ' ',
-                         endTime]), "%Y-W%W-%w %H:%M")  # 第一次下课时间
+                ''.join([str(startYear), '-W', str(curCourseBegWeek), '-', str((int(curCourse.day) + 1) % 7), ' ',
+                         endTime]), "%Y-W%U-%w %H:%M")  # 第一次下课时间
             untilDay = datetime.strptime(
-                ''.join([str(startYear), '-W', str(endWeek), '-', str((int(curCourse.day) + 1) % 7), ' ',
-                         endTime]), "%Y-W%W-%w %H:%M")  # 最后一次下课时间
+                ''.join([str(startYear), '-W', str(curCourseEndWeek), '-', str((int(curCourse.day) + 1) % 7), ' ',
+                         endTime]), "%Y-W%U-%w %H:%M")  # 最后一次下课时间
 
             # 调试信息输出
-            print('正在添加日程： %23s\t%s\t%d-%d周\t%d-%d节\t' % (
+            print('正在添加日程： %23s\t%23s\t%d-%d周\t星期%d %d-%d节\t' % (
                 curCourse.courseName,
                 curCourse.teacherName,
-                begWeek - int(startWeek) + 1,
-                endWeek - int(startWeek) + 1,
+                curCourseBegWeek - (int(allOccupyWeek) - 1) + 1,
+                curCourseEndWeek - (int(allOccupyWeek) - 1) + 1,
+                int(curCourse.day) + 1,
                 int(courseTimes[0]) + 1,
                 int(courseTimes[-1]) + 1))
 
@@ -390,9 +459,8 @@ by XtTech
         i = Image.open(BytesIO(capthaBytes))
         i.show()
 
-        # todo:verify user input
         username = input('用户名:')
-        passwd = getpass.getpass("密码(输入时不显示):");
+        passwd = input("密码(输入时不显示):")
         captcha = input('验证码:')
         print(captcha)
 
@@ -400,19 +468,27 @@ by XtTech
 
         yearList = suesApi.getYears()
         for i, year in enumerate(yearList):
-            print(i, ':', year)
-        yearSelection = yearList[int(input('Please select a year:'))]
+            print(i + 1, ':', year)
+        yearSelection = int(input('请选择导出课表的范围:'))
+        if not (0 < yearSelection and yearSelection <= len(yearList)):
+            raise MyException(ErrorCode.INPUT_ERROR, '时间段输入不正确')
+        yearSelection = yearList[yearSelection - 1]
 
         termList = suesApi.getTerms(yearSelection)
-        sorted(termList)
+        termList = sorted(termList)
         for i, term in enumerate(termList):
-            print(i, ':第%s学期' % term)
-        termSelection = termList[int(input('Please select a Term:'))]
+            print(i + 1, ':第%s学期' % term)
+        termSelection = int(input('请选择学期:'))
+        if not (0 < termSelection and termSelection <= len(termList)):
+            raise MyException(ErrorCode.INPUT_ERROR, '学期输入不正确')
+        termSelection = termList[termSelection - 1]
 
         # todo: check input
-        rltYear, startWeek, courseList = suesApi.getCourseTable(yearSelection, termSelection)
+        startYear, allOccupyWeek, allStartWeek, allEndWeek, couseList = suesApi.getCourseTable(yearSelection,
+                                                                                               termSelection)
 
-        cvt2Caldav(rltYear, startWeek, courseList)
+        cvt2Caldav(startYear, allOccupyWeek, allStartWeek, allEndWeek, couseList,
+                   5, username + '_' + yearSelection + '_' + termSelection + '.ics')
     except MyException as e:
         print('[异常]', e, file=sys.stderr)
         if DBG_MODE:
