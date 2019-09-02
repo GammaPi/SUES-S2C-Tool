@@ -61,7 +61,7 @@ SUES S2C Tool使用python编写，代码开源，免费。主要有以下三种�
 
 在Windows10下使用pyinstaller打包
 
-请去[Release页面](https://github.com/GammaPi/SUES-S2C-Tool/releases/download/v1.0/sues_s2c-windows-32.exe)下载sues_s2c-windows-32.exe
+请去[Release页面](https://github.com/GammaPi/SUES-S2C-Tool/releases)下载sues_s2c-windows-32.exe
 
 ## Linux
 
