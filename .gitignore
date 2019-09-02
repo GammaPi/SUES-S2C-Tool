@@ -1,2 +1,5 @@
 .idea
 *.ics
+dist
+build
+__pycache__

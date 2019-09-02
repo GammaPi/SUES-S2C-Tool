@@ -10,7 +10,24 @@
 
 ## 什么是SUES S2C Tool?
 
-S2C的意思是schedule to calendar。这个小工具能够将上海工程技术大学(SUES)教学信息管理系统上的课表转换成.ics的日历文件。
+S2C的意思是schedule to calendar。这个小工具能够将上海工程技术大学(SUES)教学信息管理系统上的课表转换成通用的电子日历文件(.ics)。有了.ics文件，你可以在不安装额外软件的情况下，在几乎全平台的设备上同步课程表，并收到上课提醒。
+
+SUES S2C Tool 开源、免费、开箱即用，是管理SUES课表的大杀器~
+
+## 特性
+- 全自动获取课表
+- 支持所有学年、所有学期课表获取
+- D、E、F楼上课时间可自动修正
+- 转换为.ics文件后可在几乎全平台的设备上同步而无需预装任何软件
+- 转换为.ics文件并导入设备后能够精确查看课程时间，不再需要按周次推算。可以设置上课前数分钟在设备上弹出提醒
+- 开源、免费、开箱即用,无隐私担忧
+- 代码注释丰富、扩展容易，没有协议限制，可以用来二次开发更多应用
+
+## What is SUES S2C Tool?
+
+SUES S2C Tool is a python script that help you to convert course schedule to a universal electronic calendar file(.ics) that can be added and synced through devices across platform without installing any extra software.
+
+It's a opensource free tool that just works! Perfect for managing course schedule~  
 
 ## 我为什么要做这个小工具？
 
@@ -36,23 +53,22 @@ S2C的意思是schedule to calendar。这个小工具能够将上海工程技术
 
 # 安装SUES S2C Tool
 
-![](2019-09-02-03-35-16.png)
-
 SUES S2C Tool使用python编写，代码开源，免费。主要有以下三种方式可以进行安装：
 
-## 下载打包好的程序
+## 方式一、下载打包好的程序
 
-为方便大家使用，我通过pyinstall打包成了能在**windows**和**linux**(x86架构)直接运行的可执行文件，具体可以去Release页面下载。有Mac的同学也可以帮忙打包然后发pull request贡献给我～
+为方便大家使用，我通过pyinstall打包成了能在**windows**和**linux**(x86架构)直接运行的可执行文件，具体可以去Release页面下载。有Mac的同学也可以帮忙打包，然后发pull request贡献给我～
 
-## 直接运行脚本
+## 方式二、直接运行脚本
 安装python 3.x版本
 
-```
-克隆本仓库
-cd xxx
-pip install requirements.txt
+```basg
+git clone https://github.com/GammaPi/SUES-S2C-Tool.git
+cd SUES-S2C-Tool
+pip install -r requirements.txt
 python sues_s2c.py
 ```
+
 # SUES S2C Tool食用方法
 
 ## 1.使用SUES S2C Tool导出课表到.ics文件
@@ -64,15 +80,24 @@ python sues_s2c.py
 - 查看弹出的图片验证码并输入
 - 选择要导出的学年
 - 选择要到处的学期
-  
-## 方式一、单台设备导入日历
 
-有了.ics文件之后把它导入到对应的设备上就直接可以查看了。具体导入的方法我这里搬运一些，其他的自己搜索一下应该很快能弄好。
 
-这种方式导入的日历能够在单台设备上查看/提醒，如果要在多台设备上工作则需要每台设备上导出一遍。一次导入到处同步的方式见方式二。
+## 方式一、一次导入多设备同步
+要做到一次导入多设备同步，你需要将.ics文件导入到支持导入日历功能的电子邮箱上（例如Outlook邮箱，Google日历等都是挺好的选择），然后在不同的设备上添加这些平台的帐号就可以，我这里搬运了一下Outlook邮箱的日历导入方法。
 
-## 方式二、一次导入多设备同步
-要做到一次导入多设备同步，你需要将.ics文件导入到支持日历功能的电子邮箱上（例如QQ邮箱、Outlook邮箱,163邮箱等都是挺好的选择），然后在不同的设备上添加这些平台的帐号就可以，具体教程您可以参见电子邮件服务商提供的帮助页面，我也搬运了一些。
+### 第一步、登录邮箱导入日历
+![](markdownimgs/2019-09-02-20-40-35.png)
+
+### 第二步、在各种设备上添加邮箱账户把日历同步到本地
+
+下面几种同步服务只要选择一种，然后在其他设备上添加就可以了。这里仅仅举两个例子
+
+微软outlook服务：
+[利用Exchange服务实现跨平台同步邮件、日历、通讯录的数据](https://www.jianshu.com/p/cb54e88986e1)
+
+苹果日历同步服务：
+[在 Mac 上导入或导出日历](https://support.apple.com/zh-cn/guide/calendar/icl1023/mac)
+
 
 # 贡献
 

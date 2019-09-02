@@ -474,7 +474,7 @@ if __name__ == '__main__':
 |____/ \___/|_____|____/    |____/_____|\____|   |_|\___/ \___/|_|   Ver 1.0
 
 SUES 课表转iCalendar日程工具
-源代码/Issue/贡献 https://github.com/GammaPi/SuesS2C
+源代码/Issue/贡献 https://github.com/GammaPi/SUES-S2C-Tool
 by XtTech 
     ''')
 
