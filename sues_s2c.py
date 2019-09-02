@@ -115,14 +115,14 @@ class SuesApi:
         """
         创建新会话，本方法必须在所有函数之前调用
         """
-        proxies = {'http': 'socks5://127.0.0.1:1085',
-                   'https': 'socks5://127.0.0.1:1085'}
+        # proxies = {'http': 'socks5://127.0.0.1:1085',
+        #            'https': 'socks5://127.0.0.1:1085'}
         reqHeader = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.9 Safari/537.36'
         }
         self.session = requests_html.HTMLSession()
         self.session.headers = reqHeader
-        self.session.proxies = proxies
+        # self.session.proxies = proxies
 
         # 测试连接
         try:
