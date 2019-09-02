@@ -467,24 +467,28 @@ def cvt2Caldav(startYear: str, allOccupyWeek: str, allStartWeek: str, allEndWeek
 
 if __name__ == '__main__':
     print('''
+------------------------------------------------------------------------------
  ____  _   _ _____ ____      ____ ____   ____   _____           _ 
 / ___|| | | | ____/ ___|    / ___|___ \ / ___| |_   _|__   ___ | |
 \___ \| | | |  _| \___ \    \___ \ __) | |       | |/ _ \ / _ \| |
  ___) | |_| | |___ ___) |    ___) / __/| |___    | | (_) | (_) | |
 |____/ \___/|_____|____/    |____/_____|\____|   |_|\___/ \___/|_|   Ver 1.0
 
-SUES 课表转iCalendar日程工具
+SUES 课表转iCalendar日程工具 by XtTech 
+
 源代码/Issue/贡献 https://github.com/GammaPi/SUES-S2C-Tool
-by XtTech 
+如果觉得好用别忘记Star哦！
+------------------------------------------------------------------------------
     ''')
 
     # 1.get captha
     try:
         suesApi = SuesApi()
-        print('连接教学管理系统中... 请确认http://jxxt.sues.edu.cn能访问')
+        print('测试http://jxxt.sues.edu.cn是否能正常访问...')
         suesApi.newSession()
+        print('\n连接成功!')
         
-        username = input('\n请输入用户名:')
+        username = input('\n请输入学号:')
         passwd = input("\n请输入密码:")
 
         print('\n获取验证码中,验证码将在另外窗口中弹出...')
