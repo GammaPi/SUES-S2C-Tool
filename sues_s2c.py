@@ -101,12 +101,14 @@ DEFtimeTable[3] = ('11:10', '11:55')
 # 学校课程 13-14节的时间在第九节之前需要自定义顺序，否则不能正常表示
 realTimeTableOrder = [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 9, 10]
 
+
 def cmp_courseTime(t1: int, t2: int):
     if realTimeTableOrder[t1] < realTimeTableOrder[t2]:
         return -1
     if realTimeTableOrder[t1] > realTimeTableOrder[t2]:
         return 1
     return 0
+
 
 class SuesApi:
 
@@ -561,17 +563,17 @@ SUES 课表转iCalendar日程工具 by XtTech
 
     # 1.get captha
     try:
-        print('连接Github获取更新提示中(3秒)...', end='')
+        print('连接Github获取更新提示中(最多3秒)...', end='', flush=True)
         try:
-            print('成功!')
             r = requests.get('https://raw.githubusercontent.com/GammaPi/SUES-S2C-Tool/master/Notification.txt',
                              timeout=3)
+            print('成功!')
             print('\n', r.text, sep='')
         except requests.exceptions.RequestException as e:  # This is the correct syntax
             print('')
             print('无法获取Github上的更新提示，建议您查看项目主页以确保软件最新，以免导出出错。')
 
-        print('测试http://jxxt.sues.edu.cn是否能正常访问(10秒)...', end='')
+        print('测试http://jxxt.sues.edu.cn是否能正常访问(最多10秒)...', end='', flush=True)
         suesApi = SuesApi()
         suesApi.newSession()
         print('连接成功!')
