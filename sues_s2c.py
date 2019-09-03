@@ -571,8 +571,8 @@ SUES 课表转iCalendar日程工具 by XtTech
             print('')
             print('无法获取Github上的更新提示，建议您查看项目主页以确保软件最新，以免导出出错。')
 
-        suesApi = SuesApi()
         print('测试http://jxxt.sues.edu.cn是否能正常访问(10秒)...', end='')
+        suesApi = SuesApi()
         suesApi.newSession()
         print('连接成功!')
 
