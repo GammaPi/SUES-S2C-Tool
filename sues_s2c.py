@@ -4,6 +4,7 @@ from io import BytesIO
 from PIL import Image
 from icalendar import Calendar, Event, Alarm
 from datetime import datetime, timedelta
+from dateutil import tz 
 import random
 import math
 import re
@@ -12,7 +13,7 @@ import getpass
 from enum import Enum, unique
 import sys
 
-DBG_MODE = False
+DBG_MODE = True
 
 
 @unique
@@ -25,6 +26,7 @@ class ErrorCode(Enum):
     COURSE_FETCH_ERROR = -6, '课程表获取失败'
     CONNECTION_ERROR = -7, '网络连接失败'
     INPUT_ERROR = -8, '用户输入错误'
+    API_CHANGED = -9,'教学系统API有变化'
 
     def __init__(self, errorCode, errorMsg):
         self.errorcode = errorCode
@@ -352,17 +354,34 @@ class SuesApi:
         # 因此如果发现这种情况需要特殊处理,如果碰到两个课程信息只有validweeks不同就需要进行合并这两个validweeks
         # 进行课程信息合并
         for curCourse in unMergedCouseList:
+            
+            maxNewTimes=53-(int(rltAllOccupyWeek)-1)-int(rltAllEndWeek)
+            print(curCourse.courseName,rltAllOccupyWeek,rltAllEndWeek,maxNewTimes)
             if curCourse.courseId not in unMergedCourseDict:
                 unMergedCourseDict[curCourse.courseId] = [curCourse]
-            else:
+            elif(maxNewTimes<0):
+                #说明需要和其他项合并周次才完整
                 merged = False
                 for existCIndex, existingCourse in enumerate(unMergedCourseDict[curCourse.courseId]):
                     if (existingCourse.shouldMergeValidWeek(curCourse)):
-                        #print('Merge', curCourse.courseName, existingCourse.validweeks, '+', curCourse.validweeks)
-                        existingCourse.mergeValidWeek(curCourse.validweeks)
-                        unMergedCourseDict[curCourse.courseId][existCIndex] = existingCourse
-                        merged = True
-                        break
+                        print('Merge', curCourse.courseName, existingCourse.validweeks, '+', curCourse.validweeks)
+                        #判断一下Merge添加字符串的方向，目前观察jxxt要合并的总归在后面，不过保险起见做一个判断
+                        print('maxNewTimes',maxNewTimes)
+                        if('1' in curCourse.validweeks[0:maxNewTimes]):
+                            print('Case1')
+                            merged = True
+                            existingCourse.mergeValidWeek(curCourse.validweeks)
+                            unMergedCourseDict[curCourse.courseId][existCIndex] = existingCourse
+                            break
+                        elif('1' in existingCourse.validweeks[0:maxNewTimes]):
+                            print('Case2')
+                            merged = True
+                            curCourse.mergeValidWeek(existingCourse.validweeks)
+                            unMergedCourseDict[curCourse.courseId][existCIndex] = curCourse
+                            break
+                        else:
+                            print('Case3说明不该Merge')
+                        
 
                 if not merged:
                     unMergedCourseDict[curCourse.courseId].append(curCourse)
@@ -394,6 +413,7 @@ def cvt2Caldav(startYear: str, allOccupyWeek: str, allStartWeek: str, allEndWeek
     print('\n教学活动范围：%s周-%s周' % (allStartWeek, allEndWeek))
     for curCourse in courseList:
         # 遍历开课时间段，每个开课时间段（周次）对应课程表上的一个格子，创建一个日程
+        
         for validweek in weekExtractRe.finditer(curCourse.validweeks):
             curCourseBegWeek = validweek.start()  # 当前开课周次起始周  包含 从0开始
             curCourseEndWeek = validweek.end() - 1  # 当前开课周次结束日期 包含 从0开始
@@ -412,20 +432,20 @@ def cvt2Caldav(startYear: str, allOccupyWeek: str, allStartWeek: str, allEndWeek
                 endTime = timetable[endTime][-1]  # 下课时间
 
             # 下面日期中周日是第一天，从0计数，而curCourse.day认为周一是第一天
-            if datetime.strptime(startYear + '-01-01', "%Y-%m-%d").weekday() is 6:
+            if datetime.strptime(startYear + '-01-01', "%Y-%m-%d").replace(tzinfo=tz.gettz('Beijing')).weekday() is 6:
                 # 这一年比较特殊，在python中第0周和第1周相同,往后顺延一周
                 curCourseBegWeek += 1
                 curCourseEndWeek += 1
 
             startDayFrom = datetime.strptime(
                 ''.join([str(startYear), '-W', str(curCourseBegWeek), '-', str((int(curCourse.day) + 1) % 7), ' ',
-                         begTime]), "%Y-W%U-%w %H:%M")  # 第一次上课时间
+                         begTime]), "%Y-W%U-%w %H:%M").replace(tzinfo=tz.gettz('Beijing'))  # 第一次上课时间
             startDayTo = datetime.strptime(
                 ''.join([str(startYear), '-W', str(curCourseBegWeek), '-', str((int(curCourse.day) + 1) % 7), ' ',
-                         endTime]), "%Y-W%U-%w %H:%M")  # 第一次下课时间
+                         endTime]), "%Y-W%U-%w %H:%M").replace(tzinfo=tz.gettz('Beijing'))  # 第一次下课时间
             untilDay = datetime.strptime(
                 ''.join([str(startYear), '-W', str(curCourseEndWeek), '-', str((int(curCourse.day) + 1) % 7), ' ',
-                         endTime]), "%Y-W%U-%w %H:%M")  # 最后一次下课时间
+                         endTime]), "%Y-W%U-%w %H:%M").replace(tzinfo=tz.gettz('Beijing'))  # 最后一次下课时间
 
             # 调试信息输出
             print('正在添加日程： %23s\t%23s\t%d-%d周\t星期%d %d-%d节\t%s' % (
@@ -488,8 +508,8 @@ SUES 课表转iCalendar日程工具 by XtTech
         suesApi.newSession()
         print('\n连接成功!')
         
-        username = input('\n请输入学号:')
-        passwd = input("\n请输入密码:")
+        username = '021116124'#input('\n请输入学号:')
+        passwd = 'GG=-A>jc2w5)[&n9*rmD'#input("\n请输入密码:")
 
         print('\n获取验证码中,验证码将在另外窗口中弹出...')
         capthaBytes = suesApi.getCaptha()
