@@ -30,7 +30,7 @@ SUES S2C Tool 开源、免费、开箱即用，是管理SUES课表的大杀器~
 
 ## What is SUES S2C Tool?
 
-SUES S2C Tool is a python script that help you to convert course schedule to a universal electronic calendar file(.ics) that can be added and synced through devices across platform without installing any extra software.
+SUES S2C Tool is a python script that helps you to convert course schedule to a universal electronic calendar file(.ics) that can be added and synced through devices across platform without installing any extra software.
 
 It's a opensource free tool that just works! Perfect for managing course schedule~  
 
