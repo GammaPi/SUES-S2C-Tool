@@ -17,6 +17,22 @@ SUES S2C Tool 开源、免费、开箱即用，是管理SUES课表的大杀器~
 
 欲知道如何安装、导出课表、进行同步，请查看继续查看Readme.md
 
+**本工具开源，因此任何人都可能进行修改或重新打包**
+**请您务必直接下载本代码仓库release页面的可执行文件并核对sha码（有python环境直接从源代码运行更好）**
+**近期其他学校有出现类似脚本被二次打包后导致学校系统出现攻击告警。开发者不承担因用户使用非本页面发布的程序而导致问题的责任。**
+
+```
+http://r.virscan.org/language/zh-cn/report/4ddb19c5782e9d3def214d0f62701ec4
+
+文件名称 :sues_s2c-windows-32.Ver1.1.exe （本站不提供任何文件的下载服务）
+文件大小 :11722477 byte
+文件类型 :PE32 executable for MS Windows (console) Intel 80386 32-bit
+MD5:d58cbc27aabf25747f8d78485e14db82
+SHA1:5181d7885f83a178881be0bae38678aa64786a30
+SHA256:9030f315c47d052aa91594b6f72dd61bc3218fb53185fd595faa60f00699aeec
+```
+
+
 ## 特性
 - 全自动获取课表
 - 支持所有学年、所有学期课表获取
