@@ -22,9 +22,10 @@ SUES S2C Tool 开源、免费、开箱即用，是管理SUES课表的大杀器~
 **近期其他学校有出现类似脚本被二次打包后导致学校系统出现攻击告警。开发者不承担因用户使用非本页面发布的程序而导致问题的责任。**
 
 ```
+Windows程序的查毒报告见
 http://r.virscan.org/language/zh-cn/report/4ddb19c5782e9d3def214d0f62701ec4
 
-文件名称 :sues_s2c-windows-32.Ver1.1.exe （本站不提供任何文件的下载服务）
+文件名称 :sues_s2c-windows-32.Ver1.1.exe
 文件大小 :11722477 byte
 文件类型 :PE32 executable for MS Windows (console) Intel 80386 32-bit
 MD5:d58cbc27aabf25747f8d78485e14db82
